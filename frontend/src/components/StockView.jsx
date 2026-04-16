@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const StockView = ({ ticker }) => {
   const [analysis, setAnalysis] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState(null);
 
   const { data: history, isLoading: historyLoading } = useQuery({
     queryKey: ['stockHistory', ticker],
@@ -18,11 +19,13 @@ const StockView = ({ ticker }) => {
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
+    setError(null);
     try {
       const result = await analyzeStock(ticker);
       setAnalysis(result);
     } catch (err) {
       console.error(err);
+      setError("AI Analyst encounterd an issue. This usually happens when the API token is missing or the model is overloaded. Please check your configuration.");
     } finally {
       setAnalyzing(false);
     }
@@ -48,13 +51,13 @@ const StockView = ({ ticker }) => {
           </div>
         </div>
         
-        {!analysis && !analyzing && (
+        {(!analysis || error) && !analyzing && (
           <button 
             onClick={handleAnalyze}
             className="group glass-button bg-blue-500/10 border-blue-500/30 text-blue-400 flex items-center gap-3 px-8 py-4 text-lg font-bold hover:bg-blue-500/20 active:scale-95 transition-all shadow-lg shadow-blue-500/10"
           >
             <Brain className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-            GENERATE AI ANALYSIS
+            {error ? 'RE-GENERATE ANALYSIS' : 'GENERATE AI ANALYSIS'}
             <Sparkles className="w-4 h-4 text-yellow-400" />
           </button>
         )}
@@ -202,6 +205,26 @@ const StockView = ({ ticker }) => {
                 <div className="p-4 bg-black/20 text-[10px] text-gray-500 italic text-center">
                   Based on algorithmic variance and technical pattern recognition.
                 </div>
+              </motion.div>
+            ) : error ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="glass-card border-rose-500/20 p-8 h-full flex flex-col items-center justify-center gap-6 text-center"
+              >
+                <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-8 h-8 text-rose-400" />
+                </div>
+                <div className="space-y-2">
+                  <h4 className="text-lg font-bold text-white">Analysis Failed</h4>
+                  <p className="text-gray-400 text-sm leading-relaxed">{error}</p>
+                </div>
+                <button 
+                  onClick={handleAnalyze}
+                  className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-sm font-bold text-white transition-colors"
+                >
+                  RETRY NOW
+                </button>
               </motion.div>
             ) : (
               <div className="glass-card p-8 h-full flex flex-col items-center justify-center gap-4 border-dashed border-white/10 opacity-50">

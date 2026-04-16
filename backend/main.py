@@ -96,13 +96,15 @@ async def get_history(ticker: str):
 
 @app.post("/api/stocks/{ticker}/analyze", response_model=AnalysisResult)
 async def analyze_stock(ticker: str):
-    if not HF_TOKEN:
-        # Fallback for demo if no token is provided
+    is_placeholder = not HF_TOKEN or "your_huggingface_token_here" in HF_TOKEN
+    
+    if is_placeholder:
+        # Fallback for demo if no token is provided or it's a placeholder
         return AnalysisResult(
-            trend="Upward (Mock)",
+            trend="Bullish (Mock)",
             risk_level="Medium (Mock)",
-            suggested_action="Long-term investment (Mock)",
-            reasoning="HF_TOKEN not set. This is mock analysis. In a real scenario, the LLM would analyze historical trends."
+            suggested_action="Hold/Buy on Dips (Mock)",
+            reasoning="Valid HF_TOKEN not detected in backend/.env. This is generated mock data based on recent price trends. For live AI analysis, please provide a HuggingFace Inference API token."
         )
 
     try:
@@ -141,20 +143,33 @@ async def analyze_stock(ticker: str):
             if response.status_code != 200:
                 raise HTTPException(status_code=response.status_code, detail="HF API error")
             
-            result_text = response.json()[0]["generated_text"]
-            # Extract JSON from response (sometimes LLMs wrap it in markdown block)
+            result_text = response.json()[0].get("generated_text", "")
+            
+            # Extract JSON from response
             try:
-                # Simple cleanup if the model provides extra text
+                # Find valid JSON boundaries
                 json_start = result_text.find("{")
                 json_end = result_text.rfind("}") + 1
-                json_data = json.loads(result_text[json_start:json_end])
-                return AnalysisResult(**json_data)
-            except:
+                
+                if json_start != -1 and json_end > json_start:
+                    json_str = result_text[json_start:json_end]
+                    json_data = json.loads(json_str)
+                    
+                    # Basic validation and sanitization
+                    return AnalysisResult(
+                        trend=str(json_data.get("trend", "Manual Review Required")),
+                        risk_level=str(json_data.get("risk_level", "Medium")),
+                        suggested_action=str(json_data.get("suggested_action", "Consult Financial Advisor")),
+                        reasoning=str(json_data.get("reasoning", "Analysis completed but reasoning was not clearly provided."))
+                    )
+                else:
+                    raise ValueError("AI did not produce valid JSON")
+            except Exception as e:
                 return AnalysisResult(
                     trend="Inconclusive",
                     risk_level="Unknown",
-                    suggested_action="Short-term watch",
-                    reasoning=f"Failed to parse AI response: {result_text[:200]}..."
+                    suggested_action="N/A",
+                    reasoning=f"Format error in AI output. Raw snippet: {result_text[:150]}"
                 )
 
     except Exception as e:
